@@ -8,6 +8,7 @@ import Offers from './pages/Offers';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
 import Profile from './pages/Profile';
+import Category from './pages/Category';
 import ForgotPassword from './pages/ForgotPassword';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
         <Routes>
           <Route path='/' element={<Explore />} />
           <Route path='/offers' element={<Offers />} />
+          <Route path='/category/:categoryName' element={<Category />} />
           {/* navigate to sign-in if not logged in */}
           <Route path='/profile' element={<PrivateRoute />}>
             <Route path='/profile' element={<Profile />} /> {/* outlet if Logged-in */}
