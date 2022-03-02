@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { db } from '../firebase.config';
 import Spinner from '../components/layout/Spinner';
+import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
 
 function CreateListing() {
@@ -86,16 +89,74 @@ function CreateListing() {
     //condition to show manual input of lat and long
     if (geolocationEnabled) {
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${address}&key=AIzaSyBIzbYznX_CRUuSjETkxzVu2tUYIoPZ6rg`
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${address}&key=${process.env.REACT_APP_GEOCODE_API_KEY}`
       );
 
       const data = await response.json();
 
-      console.log(data);
+      geolocation.lat = data.results[0]?.geometry.location.lat ?? 0;
+      geolocation.long = data.results[0]?.geometry.location.long ?? 0;
+
+      location = data.status === 'ZERO_RESULTS' ? undefined : data.results[0]?.formatted_address;
+
+      if (location === undefined || location.includes('undefined')) {
+        setLoading(false);
+        toast.error('Please enter a valid address');
+        return;
+      }
     } else {
       geolocation.lat = latitude;
       geolocation.long = longitude;
+      location = address;
     }
+
+    //Store images in firebase storage
+    const storeImage = async (image) => {
+      return new Promise((resolve, reject) => {
+        const storage = getStorage();
+        const fileName = `${auth.currentUser.uid}-${image.name}-${uuidv4()}`;
+
+        const storageRef = ref(storage, 'images/' + fileName);
+
+        //create upload task - firebase docs
+        const uploadTask = uploadBytesResumable(storageRef, image);
+
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log('Upload is ' + progress + '% done');
+            switch (snapshot.state) {
+              case 'paused':
+                console.log('Upload is paused');
+                break;
+              case 'running':
+                console.log('Upload is running');
+                break;
+            }
+          },
+
+          (error) => {
+            reject(error);
+          },
+
+          () => {
+            getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+              resolve(downloadURL);
+            });
+          }
+        );
+      });
+    };
+
+    //storeImage function returns a promise, save to variable imgUrls and store each img to storage
+    const imgUrls = await Promise.all([...images].map((image) => storeImage(image))).catch(() => {
+      setLoading(false);
+      toast.error('Images not uploaded');
+      return;
+    });
+
+    console.log(imgUrls);
 
     setLoading(false);
   };
