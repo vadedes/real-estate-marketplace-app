@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase.config';
 import Spinner from '../components/layout/Spinner';
 import { v4 as uuidv4 } from 'uuid';
@@ -107,7 +108,6 @@ function CreateListing() {
     } else {
       geolocation.lat = latitude;
       geolocation.long = longitude;
-      location = address;
     }
 
     //Store images in firebase storage
@@ -156,7 +156,26 @@ function CreateListing() {
       return;
     });
 
-    console.log(imgUrls);
+    //save listings to firestore start here
+    //take data from form data above and add below fields
+    const formDataCopy = {
+      ...formData,
+      imgUrls,
+      geolocation,
+      timestamp: serverTimestamp(),
+    };
+
+    //clean up data received from form data copy
+    formDataCopy.location = address;
+    delete formDataCopy.images;
+    delete formDataCopy.address;
+    !formDataCopy.offer && delete formDataCopy.discountedPrice;
+
+    //Add new listing to database
+    const docRef = await addDoc(collection(db, 'listings'), formDataCopy);
+    setLoading(false);
+    toast.success('Listing saved');
+    navigate(`/category/${formDataCopy.type}/${docRef.id}`);
 
     setLoading(false);
   };
